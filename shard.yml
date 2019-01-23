@@ -20,4 +20,5 @@ development_dependencies:
     github: veelenga/ameba
     version: ~> 0.8.1
   coverage:
-    github: anykeyh/crystal-coverage
+    github: hanneskaeufler/crystal-coverage
+    branch: hk-fix-crystal-api-change
