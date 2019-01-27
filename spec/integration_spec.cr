@@ -1,5 +1,6 @@
 require "../src/crytic/runner"
 require "./fake_generator"
+require "./fake_mutation"
 require "./fake_reporter"
 require "./spec_helper"
 
@@ -18,8 +19,9 @@ describe Crytic do
   describe "--preamble/-p" do
     it "injects the given custom preamble, failing the neutral mutant" do
       result = run_crytic("-s ./fixtures/conditionals/fully_covered.cr ./fixtures/conditionals/uncovered_spec.cr -p 'exit 1'")
-      result.output.should contain("dude that failed")
-      result.exit_code.should eq 1
+      result.output.should contain("Dude that failed")
+      result.output.should_not contain("ConditionFlip")
+      result.exit_code.should eq 0
     end
   end
 
@@ -111,12 +113,32 @@ describe Crytic::Runner do
       reporter = FakeReporter.new
       runner = Crytic::Runner.new(
         threshold: 100.0,
-        generator: FakeGenerator.new,
+        generator: FakeGenerator.new([FakeMutation.new.as(Crytic::Mutation::MutationInterface)]),
         reporters: [reporter] of Crytic::Reporter::Reporter)
 
       runner.run("./fixtures/simple/bar.cr", ["./fixtures/simple/bar_spec.cr"])
 
-      reporter.events.should eq ["report_original_result", "report_mutations", "report_summary", "report_msi"]
+      reporter.events.should eq ["report_original_result", "report_mutations", "report_neutral_result", "report_result", "report_summary", "report_msi"]
+    end
+
+    it "skips the mutations if the neutral result errored" do
+      reporter = FakeReporter.new
+      runner = Crytic::Runner.new(
+        threshold: 100.0,
+        generator: FakeGenerator.new(
+          neutral: FakeMutation
+            .new(reported_status: Crytic::Mutation::Status::Errored)
+            .as(Crytic::Mutation::MutationInterface),
+          mutations: [
+          FakeMutation
+            .new(reported_status: Crytic::Mutation::Status::Errored)
+            .as(Crytic::Mutation::MutationInterface)
+        ]),
+        reporters: [reporter] of Crytic::Reporter::Reporter)
+
+      runner.run("./fixtures/simple/bar.cr", ["./fixtures/simple/bar_spec.cr"])
+
+      reporter.events.should_not contain("report_result")
     end
   end
 end
